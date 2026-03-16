@@ -149,6 +149,8 @@ example.kcap/
 ![Figure](resources/fig-001.png)
 ```
 
+实现方 **SHOULD** 在 `kcap.json` 中通过 `knowledge_metadata.content_hash` 记录 `knowledge.md` 的内容哈希（推荐 SHA-256），以支持入库时的去重校验与完整性验证。
+
 ---
 
 ## 7. Manifest Model
@@ -175,6 +177,17 @@ example.kcap/
 除 `version`、`sources` 外，其余字段均为可选。
 
 顶层字段用于描述 **capsule 本身**；`knowledge_metadata` 用于描述 `knowledge.md` 所承载的**知识内容**。
+
+### 7.1 Top-level Field Format Conventions
+
+`id`
+capsule 标识。实现方 **SHOULD** 使用 UUID v4 或 URI 以便在跨系统集成时进行去重与追溯。若实现方不保证全局唯一性，**SHOULD** 在文档中注明其唯一性范围。
+
+`language`
+capsule 的主要语言。**SHOULD** 使用 BCP 47 语言标签（例如 `"zh-CN"`、`"en-US"`）。
+
+`created_at`
+capsule 的创建时间。**MUST** 为 ISO 8601 格式的 UTC 时间字符串（例如 `"2026-03-11T10:00:00Z"`）。
 
 ---
 
@@ -327,8 +340,35 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 * `knowledge_time`
 * `sensitivity`
 * `quality`
+* `content_hash`
 
 该对象为开放对象。
+
+#### 11.1.1 `content_hash`
+
+`content_hash` **SHOULD** 记录 `knowledge.md` 文件内容的哈希值，格式 **SHOULD** 为 `"算法:十六进制摘要"`（例如 `"sha256:a1b2c3..."`）。入库系统 **MAY** 使用此字段进行去重检测与完整性校验。
+
+#### 11.1.2 `quality`
+
+`quality` 用于描述知识内容的质量评估信息，供入库流程进行质量门控。推荐结构如下：
+
+```json
+{
+  "extraction_confidence": 0.95,
+  "completeness": "full",
+  "review_status": "auto",
+  "issues": []
+}
+```
+
+其中：
+
+* `extraction_confidence`：内容提取置信度，取值 0.0–1.0。用于表示从原始来源提取为 Markdown 的可靠程度。
+* `completeness`：内容完整性。推荐值：`"full"`、`"partial"`、`"degraded"`。
+* `review_status`：审核状态。推荐值：`"auto"`（仅自动处理）、`"human_reviewed"`（经人工审核）、`"rejected"`（已拒绝）。
+* `issues`：已知质量问题列表，每项为一个字符串，例如 `"OCR 识别部分文字模糊"`、`"表格结构丢失"`。
+
+入库系统 **MAY** 依据 `quality` 字段决定是否接受该 capsule 入库。
 
 ### 11.2 `resources_metadata`
 
@@ -369,6 +409,48 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 标准消费者 **MAY** 忽略 `extras/` 及其描述，而不影响对 capsule 的基本读取。
 
+### 11.4 `pipeline`
+
+`pipeline` 用于记录 capsule 的生产流水线信息，使入库系统能够追溯 capsule 的生成过程、排查问题、并支持重新处理。
+
+推荐结构如下：
+
+```json
+{
+  "producer": "kcap-pipeline",
+  "producer_version": "0.3.1",
+  "created_at": "2026-03-11T10:00:00Z",
+  "steps": [
+    {
+      "name": "pdf_extract",
+      "tool": "pdfplumber",
+      "tool_version": "0.10.0",
+      "started_at": "2026-03-11T09:59:50Z",
+      "finished_at": "2026-03-11T09:59:55Z",
+      "params": {},
+      "status": "success"
+    },
+    {
+      "name": "markdown_convert",
+      "tool": "custom_converter",
+      "tool_version": "1.2.0",
+      "started_at": "2026-03-11T09:59:55Z",
+      "finished_at": "2026-03-11T09:59:58Z",
+      "status": "success"
+    }
+  ]
+}
+```
+
+其中：
+
+* `producer`：生产 capsule 的系统名称。
+* `producer_version`：生产系统版本。
+* `created_at`：capsule 生产时间，**SHOULD** 为 ISO 8601 格式的 UTC 时间。
+* `steps`：处理步骤数组，按执行顺序排列。每个步骤 **SHOULD** 包含 `name` 和 `status`。
+
+入库系统 **MAY** 依据 `pipeline` 信息判断是否需要重新处理，或在排查问题时回溯生产流程。
+
 ---
 
 ## 12. Conformance
@@ -383,6 +465,19 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 6. 每个 source **MUST** 包含 `source_id`、`kind`、`ref`
 7. `knowledge.md` **MUST** 为 UTF-8 Markdown 文件
 8. Package Form **MUST** 为 ZIP，且解包后结构与 Loose Form 等价
+9. 若 `created_at` 存在，**MUST** 为 ISO 8601 格式的 UTC 时间字符串
+
+### 12.1 Ingestion Validation Recommendations
+
+入库系统在消费 KCAP capsule 时，**SHOULD** 额外执行以下校验：
+
+* `knowledge.md` 非空且包含有效 Markdown 内容
+* 若 `knowledge_metadata.content_hash` 存在，则验证其与 `knowledge.md` 实际内容一致
+* 若 `knowledge_metadata.quality` 存在，检查 `extraction_confidence` 是否满足入库门槛
+* 若 `resources/` 中存在文件，`knowledge.md` 中 **SHOULD** 存在对应的引用
+* 若 `pipeline` 存在，验证所有步骤的 `status` 字段
+
+上述校验为推荐实践，不属于合规性要求。
 
 ---
 
@@ -426,7 +521,101 @@ report.kcap/
 
 ---
 
-## 14. Security and Integrity Considerations
+## 14. Full Ingestion Example
+
+以下示例展示入库系统处理一份 PDF 后生成的完整 capsule。
+
+### 14.1 Layout
+
+```text
+report.kcap/
+├── kcap.json
+├── knowledge.md
+├── resources/
+│   └── fig-001.png
+└── extras/
+    └── source.pdf
+```
+
+### 14.2 `kcap.json`
+
+```json
+{
+  "version": "1.0",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "2025年度行业报告",
+  "language": "zh-CN",
+  "created_at": "2026-03-11T10:00:00Z",
+  "sources": [
+    {
+      "source_id": "src_001",
+      "kind": "url",
+      "ref": "https://example.com/report.pdf",
+      "mime_type": "application/pdf",
+      "filename": "report.pdf",
+      "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb924...",
+      "role": "primary",
+      "metadata": {
+        "page_count": 24,
+        "author": "行业研究院"
+      },
+      "snapshots": [
+        {
+          "path": "extras/source.pdf",
+          "kind": "source_snapshot",
+          "mime_type": "application/pdf",
+          "captured_at": "2026-03-11T09:59:50Z",
+          "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb924..."
+        }
+      ]
+    }
+  ],
+  "knowledge_metadata": {
+    "keywords": ["行业趋势", "2025", "市场分析"],
+    "abstract": "本文分析了 2025 年行业发展趋势，涵盖市场规模、竞争格局与未来展望。",
+    "content_hash": "sha256:a1b2c3d4e5f6...",
+    "quality": {
+      "extraction_confidence": 0.95,
+      "completeness": "full",
+      "review_status": "auto",
+      "issues": []
+    }
+  },
+  "resources_metadata": {
+    "fig-001.png": {
+      "type": "image",
+      "description": "市场趋势图"
+    }
+  },
+  "pipeline": {
+    "producer": "kcap-pipeline",
+    "producer_version": "0.3.1",
+    "created_at": "2026-03-11T10:00:00Z",
+    "steps": [
+      {
+        "name": "pdf_extract",
+        "tool": "pdfplumber",
+        "tool_version": "0.10.0",
+        "started_at": "2026-03-11T09:59:50Z",
+        "finished_at": "2026-03-11T09:59:55Z",
+        "status": "success"
+      },
+      {
+        "name": "markdown_convert",
+        "tool": "custom_converter",
+        "tool_version": "1.2.0",
+        "started_at": "2026-03-11T09:59:55Z",
+        "finished_at": "2026-03-11T09:59:58Z",
+        "status": "success"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 15. Security and Integrity Considerations
 
 实现方 **SHOULD** 为来源或快照记录内容哈希，以支持去重、校验与追溯。
 消费方 **SHOULD** 将 `extras/` 中内容视为不可信输入。
@@ -434,7 +623,7 @@ report.kcap/
 
 ---
 
-## 15. Extensibility
+## 16. Extensibility
 
 KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
@@ -446,13 +635,16 @@ KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
 ---
 
-## 16. Future Work
+## 17. Future Work
 
 后续版本可考虑增加但 v1.0 不包含：
 
+* JSON Schema 定义，用于自动化校验 `kcap.json`
+* capsule 生命周期状态（draft → reviewed → approved → archived）
 * chunk 标准
 * embedding / index 标准
 * 多语言正文
 * 来源锚点映射
 * 权限与版权信息
 * 扩展命名空间机制
+* 入库批次（batch）描述协议
