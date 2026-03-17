@@ -179,23 +179,35 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 
 ##### `text` locator
 
-用于在某个文本对象中定位一段文本。以 `char_range` 作为主坐标系，以 `line_range` 作为可选辅助坐标系。
+用于在某个文本对象中定位一段文本。使用 `coord` 标明坐标系，`range` 表达该坐标系下的范围。
+
+> 使用 `text` locator 时，其定位的文本对象由外层上下文决定：`generated` 中的 locator 默认指向顶层 `target`（即 `knowledge.md`），source segment 中的 locator 默认指向所属 `source_id` 对应的来源对象。因此 locator 自身不再携带 `text_ref` 字段。
 
 字段说明：
 
 * `type`：固定为 `"text"`。
-* `text_ref`：指向被定位的文本对象。对于 `knowledge.md` 正文定位，固定为 `"knowledge.md"`；对于来源文本定位，**SHOULD** 使用 `"source:{source_id}"` 格式（如 `"source:src_001"`）。
-* `char_range`：主坐标。两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
-* `line_range`：可选辅助坐标。两元素数组，每个元素为包含 `line` 和 `column` 的对象，分别表示起点与终点。
+* `coord`：坐标系标识。v1.0 定义两种取值：
+  * `"char"`：字符流坐标。`range` 为两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
+  * `"line"`：行列坐标。`range` 为两元素数组，每个元素为包含 `line` 和 `column` 的对象，分别表示起点与终点。
+* `range`：坐标范围。具体结构由 `coord` 决定。
 
-示例：
+字符流示例：
 
 ```json
 {
   "type": "text",
-  "text_ref": "knowledge.md",
-  "char_range": [120, 260],
-  "line_range": [
+  "coord": "char",
+  "range": [120, 260]
+}
+```
+
+行列坐标示例：
+
+```json
+{
+  "type": "text",
+  "coord": "line",
+  "range": [
     { "line": 8, "column": 1 },
     { "line": 12, "column": 15 }
   ]
@@ -210,7 +222,8 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 
 * `type`：固定为 `"visual"`。
 * `page`：可选。用于分页型来源。
-* `bbox`：矩形区域坐标，四元数组 `[x0, y0, x1, y1]`。v1.0 不强行规定坐标系细节，只要求同一来源内部一致。
+* `bbox`：矩形区域坐标，四元数组 `[x0, y0, x1, y1]`。
+* `coord`：可选。坐标系空间标识，用于标明 `bbox` 所使用的坐标系（如 `"pt72"`、`"px"`、`"mm"` 等）。v1.0 不强制要求此字段，但若存在，同一来源内 **SHOULD** 保持一致。
 
 示例：
 
@@ -218,7 +231,8 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 {
   "type": "visual",
   "page": 2,
-  "bbox": [72, 120, 540, 220]
+  "bbox": [72, 120, 540, 220],
+  "coord": "pt72"
 }
 ```
 
@@ -270,92 +284,10 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 * v1.0 不强制要求在 `knowledge.md` 中写入显式 anchor 标记；映射通过 `knowledge.map.json` 中的 `anchor_id` 与 `generated` 位置描述完成，不依赖数组顺序。
 * `locator` 只描述"如何找到某处"，不承载 source 本体信息。
 * `segment` 表示 source 中参与映射的一个离散片段；其具体位置由 `locator` 表达。
-* `char_range` 是机器主坐标，`line_range` 是可选辅助坐标。
+* `text` locator 通过 `coord` 字段选择坐标系（`char` 或 `line`），每个 locator 使用单一坐标系。
+* `visual` locator 可通过可选 `coord` 字段标明坐标系空间。
 
-#### 6.3.6 示例
-
-```json
-{
-  "version": "1.0",
-  "target": "knowledge.md",
-  "mappings": [
-    {
-      "anchor_id": "blk_001",
-      "generated": {
-        "type": "text",
-        "text_ref": "knowledge.md",
-        "char_range": [0, 48],
-        "line_range": [
-          { "line": 1, "column": 1 },
-          { "line": 3, "column": 8 }
-        ]
-      },
-      "sources": [
-        {
-          "source_id": "src_001",
-          "segments": [
-            {
-              "segment_id": "seg_001",
-              "locator": {
-                "type": "visual",
-                "page": 1,
-                "bbox": [72, 120, 540, 220]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "anchor_id": "blk_002",
-      "generated": {
-        "type": "text",
-        "text_ref": "knowledge.md",
-        "char_range": [49, 180],
-        "line_range": [
-          { "line": 5, "column": 1 },
-          { "line": 9, "column": 20 }
-        ]
-      },
-      "sources": [
-        {
-          "source_id": "src_001",
-          "segments": [
-            {
-              "segment_id": "seg_001",
-              "locator": {
-                "type": "visual",
-                "page": 2,
-                "bbox": [80, 160, 560, 420]
-              }
-            },
-            {
-              "segment_id": "seg_002",
-              "locator": {
-                "type": "visual",
-                "page": 5,
-                "bbox": [60, 400, 500, 520]
-              }
-            }
-          ]
-        },
-        {
-          "source_id": "src_002",
-          "segments": [
-            {
-              "segment_id": "seg_001",
-              "locator": {
-                "type": "ref",
-                "ref": "extras/docling.json#/texts/3"
-              }
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
+完整的 `knowledge.map.json` 示例见 [Section 14.3](#143-knowledgemapjson)。
 
 ---
 
@@ -831,12 +763,8 @@ report.kcap/
       "anchor_id": "blk_001",
       "generated": {
         "type": "text",
-        "text_ref": "knowledge.md",
-        "char_range": [0, 48],
-        "line_range": [
-          { "line": 1, "column": 1 },
-          { "line": 3, "column": 8 }
-        ]
+        "coord": "char",
+        "range": [0, 48]
       },
       "sources": [
         {
@@ -847,7 +775,8 @@ report.kcap/
               "locator": {
                 "type": "visual",
                 "page": 1,
-                "bbox": [72, 120, 540, 220]
+                "bbox": [72, 120, 540, 220],
+                "coord": "pt72"
               }
             }
           ]
@@ -858,9 +787,8 @@ report.kcap/
       "anchor_id": "blk_002",
       "generated": {
         "type": "text",
-        "text_ref": "knowledge.md",
-        "char_range": [49, 180],
-        "line_range": [
+        "coord": "line",
+        "range": [
           { "line": 5, "column": 1 },
           { "line": 12, "column": 20 }
         ]
@@ -874,7 +802,29 @@ report.kcap/
               "locator": {
                 "type": "visual",
                 "page": 2,
-                "bbox": [80, 160, 560, 420]
+                "bbox": [80, 160, 560, 420],
+                "coord": "pt72"
+              }
+            },
+            {
+              "segment_id": "seg_002",
+              "locator": {
+                "type": "visual",
+                "page": 5,
+                "bbox": [60, 400, 500, 520],
+                "coord": "pt72"
+              }
+            }
+          ]
+        },
+        {
+          "source_id": "src_002",
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "ref",
+                "ref": "extras/docling.json#/texts/3"
               }
             }
           ]
