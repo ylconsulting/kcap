@@ -167,7 +167,7 @@ KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar �
 
 `knowledge.map.json` **MUST** 为合法 JSON 对象，包含以下顶层字段：
 
-* `version`：source map 文件自身版本，独立于 KCAP 主版本管理。
+* `version`：source map 文件自身版本，独立于 KCAP 主版本管理。**SHOULD** 采用 `"主版本.次版本"` 格式（如 `"1.0"`）。本规范定义的版本为 `"1.0"`。
 * `target`：固定为 `"knowledge.md"`，标明此 map 对应的正文文件。
 * `mappings`：映射记录数组。
 
@@ -177,7 +177,7 @@ KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar �
 
 单条映射记录 **SHOULD** 包含以下字段：
 
-* `anchor_id`：块级锚点 ID，用于稳定标识一条正文映射。
+* `anchor_id`：块级锚点 ID，用于稳定标识一条正文映射。`anchor_id` 在同一 `knowledge.map.json` 文件内 **MUST** 唯一。推荐采用 `"blk_"` 前缀加序号的格式（如 `"blk_001"`）。
 * `generated`：描述映射目标在 `knowledge.md` 中的位置。
   * `line_start`：起始行号
   * `line_end`：结束行号
@@ -203,7 +203,7 @@ KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar �
 #### 6.3.4 设计边界
 
 * v1.0 以**块级映射为主、位置级可选**，不采用纯行列级或压缩编码（如 VLQ）设计。
-* v1.0 不强制要求在 `knowledge.md` 中写入显式 anchor 标记；映射通过 `knowledge.map.json` 中的块顺序和位置描述完成。
+* v1.0 不强制要求在 `knowledge.md` 中写入显式 anchor 标记；映射通过 `knowledge.map.json` 中的 `anchor_id` 与 `generated` 位置描述完成，不依赖数组顺序。
 
 #### 6.3.5 示例
 
