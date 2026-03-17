@@ -103,14 +103,16 @@ extras/
 example.kcap/
 ├── kcap.json
 ├── knowledge.md
-├── resources/   ; optional
-└── extras/      ; optional
+├── knowledge.map.json   ; optional
+├── resources/           ; optional
+└── extras/              ; optional
 ```
 
 其中：
 
 * `kcap.json` 是唯一清单文件
 * `knowledge.md` 是主体知识文本
+* `knowledge.map.json` 是 `knowledge.md` 的可选来源锚点映射文件
 * `resources/` 保存知识相关资源
 * `extras/` 保存非核心扩展附属内容
 
@@ -150,6 +152,10 @@ example.kcap/
 ```
 
 实现方 **SHOULD** 在 `kcap.json` 中通过 `knowledge.content_hash` 记录 `knowledge.md` 的内容哈希（推荐 SHA-256），以支持入库时的去重校验与完整性验证。
+
+### 6.3 `knowledge.map.json`
+
+KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar 文件；若该文件存在，则其语义为 `knowledge.md` 的来源锚点映射文件。`knowledge.map.json` 的完整规范见 [Section 12](#12-来源锚点映射knowledge-map)。
 
 ---
 
@@ -453,7 +459,143 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ---
 
-## 12. Conformance
+## 12. 来源锚点映射（Knowledge Map）
+
+`knowledge.map.json` 用于将 `knowledge.md` 中的块或片段映射回一个或多个原始来源位置，支持来源追溯、调试核查、高保真解释，以及为后续 chunk、citation、UI 高亮与定位跳转留接口。
+
+消费者 **MAY** 忽略 `knowledge.map.json`，而不影响 capsule 的基本读取与使用。
+
+`knowledge.map.json` 通过文件名约定发现，位于 capsule 根目录，与 `knowledge.md` 并列。不需要在 `kcap.json` 中显式配置，也不放入 `extras/`。
+
+### 12.1 数据模型
+
+`knowledge.map.json` **MUST** 为合法 JSON 对象，包含以下顶层字段：
+
+* `version`：source map 文件自身版本，独立于 KCAP 主版本管理。**SHOULD** 采用 `"主版本.次版本"` 格式（如 `"1.0"`）。本规范定义的版本为 `"1.0"`。
+* `target`：固定为 `"knowledge.md"`，标明此 map 对应的正文文件。
+* `mappings`：映射记录数组。
+
+### 12.2 Locator 抽象
+
+KCAP 定义统一的 `locator` 抽象，用于在不同坐标系统中标记位置。每个 locator **MUST** 包含 `type` 字段，不同 `type` 决定其余字段。
+
+KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
+
+#### `text` locator
+
+用于在某个文本对象中定位一段文本。使用 `coord` 标明坐标系，`range` 表达该坐标系下的范围。
+
+> 使用 `text` locator 时，其定位的文本对象由外层上下文决定：`generated` 中的 locator 默认指向顶层 `target`（即 `knowledge.md`），source segment 中的 locator 默认指向所属 `source_id` 对应的来源对象。因此 locator 自身不再携带 `text_ref` 字段。
+
+字段说明：
+
+* `type`：固定为 `"text"`。
+* `coord`：坐标系标识。v1.0 定义两种取值：
+  * `"char"`：字符流坐标。`range` 为两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
+  * `"line"`：行列坐标。`range` 为两元素数组，每个元素为包含 `line`（必需，1-based）和 `column`（可选，1-based）的对象，分别表示起点（inclusive）与终点（exclusive）。`column` 在起点和终点中均可省略，省略时默认为 `1`（即该行起始位置）。
+* `range`：坐标范围。具体结构由 `coord` 决定。
+
+字符流示例：
+
+```json
+{
+  "type": "text",
+  "coord": "char",
+  "range": [120, 260]
+}
+```
+
+行列坐标示例：
+
+```json
+{
+  "type": "text",
+  "coord": "line",
+  "range": [
+    { "line": 8 },
+    { "line": 12, "column": 15 }
+  ]
+}
+```
+
+#### `visual` locator
+
+用于在页面、图片或视觉对象上定位一个区域。
+
+字段说明：
+
+* `type`：固定为 `"visual"`。
+* `page`：可选。用于分页型来源。
+* `bbox`：矩形区域坐标，四元数组 `[x0, y0, x1, y1]`。
+* `coord`：可选。坐标系空间标识，用于标明 `bbox` 所使用的坐标系。v1.0 将其定义为自由字符串，推荐使用 `"pt72"`（PDF 默认 72 DPI 点）、`"px"`（像素）、`"mm"`（毫米）等易于理解的短标签。v1.0 不强制要求此字段，但若存在，同一来源内 **SHOULD** 保持一致。
+
+示例：
+
+```json
+{
+  "type": "visual",
+  "page": 2,
+  "bbox": [72, 120, 540, 220],
+  "coord": "pt72"
+}
+```
+
+#### `ref` locator
+
+用于以引用方式标识一个位置，而不要求字符范围或视觉区域。
+
+字段说明：
+
+* `type`：固定为 `"ref"`。
+* `ref`：可解析的引用目标。可以是 URL、JSON Pointer、外部系统 anchor 或内部对象 ID 引用。
+
+示例：
+
+```json
+{
+  "type": "ref",
+  "ref": "extras/docling.json#/texts/3"
+}
+```
+
+### 12.3 映射记录
+
+每条映射记录描述 `knowledge.md` 中一个知识块到一个或多个原始来源位置的对应关系。
+
+单条映射记录 **SHOULD** 包含以下字段：
+
+* `anchor_id`：块级锚点 ID，用于稳定标识一条正文映射。`anchor_id` 在同一 `knowledge.map.json` 文件内 **MUST** 唯一。推荐采用 `"blk_"` 前缀加序号的格式（如 `"blk_001"`）。
+* `generated`：一个 `text` locator，描述映射目标在 `knowledge.md` 中的位置。
+* `sources`：数组，表示该知识块对应的一个或多个来源贡献（one-to-many）。
+
+### 12.4 来源贡献与 Segments
+
+`sources` 数组中每个元素 **SHOULD** 包含：
+
+* `source_id`：对应 `kcap.json.sources[*].source_id`。
+* `segments`：数组，表示该 source 中参与当前映射的一个或多个离散片段。
+
+在 KCAP v1.0 中，每个 `segment` 仅包含一个 `locator`。
+
+单个 segment **SHOULD** 包含：
+
+* `segment_id`：片段标识，在同一 source 贡献内 **SHOULD** 唯一。
+* `locator`：一个 locator 对象（`text`、`visual` 或 `ref`），用于定位该片段在来源中的具体位置。
+
+### 12.5 设计边界
+
+* v1.0 以**块级映射为主、位置级可选**，不采用纯行列级或压缩编码（如 VLQ）设计。
+* v1.0 不强制要求在 `knowledge.md` 中写入显式 anchor 标记；映射通过 `knowledge.map.json` 中的 `anchor_id` 与 `generated` 位置描述完成，不依赖数组顺序。
+* `locator` 只描述"如何找到某处"，不承载 source 本体信息。
+* `segment` 表示 source 中参与映射的一个离散片段；其具体位置由 `locator` 表达。
+* `text` locator 通过 `coord` 字段选择坐标系（`char` 或 `line`），每个 locator 使用单一坐标系。
+* `visual` locator 可通过可选 `coord` 字段标明坐标系空间。
+
+完整的 `knowledge.map.json` 示例见 [Section 15.3](#153-knowledgemapjson)。
+
+---
+
+## 13. Conformance
 
 一个实现符合 KCAP v1.0，当且仅当其满足以下条件：
 
@@ -467,7 +609,7 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 8. Package Form **MUST** 为 ZIP，且解包后结构与 Loose Form 等价
 9. 若 `created_at` 存在，**MUST** 为 ISO 8601 格式的 UTC 时间字符串
 
-### 12.1 Ingestion Validation Recommendations
+### 13.1 Ingestion Validation Recommendations
 
 入库系统在消费 KCAP capsule 时，**SHOULD** 额外执行以下校验：
 
@@ -481,9 +623,9 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ---
 
-## 13. Minimal Example
+## 14. Minimal Example
 
-### 13.1 Layout
+### 14.1 Layout
 
 ```text
 report.kcap/
@@ -491,7 +633,7 @@ report.kcap/
 └── knowledge.md
 ```
 
-### 13.2 `kcap.json`
+### 14.2 `kcap.json`
 
 ```json
 {
@@ -509,7 +651,7 @@ report.kcap/
 }
 ```
 
-### 13.3 `knowledge.md`
+### 14.3 `knowledge.md`
 
 ```markdown
 # 2025年度行业报告
@@ -521,23 +663,24 @@ report.kcap/
 
 ---
 
-## 14. Full Ingestion Example
+## 15. Full Ingestion Example
 
 以下示例展示入库系统处理一份 PDF 后生成的完整 capsule。
 
-### 14.1 Layout
+### 15.1 Layout
 
 ```text
 report.kcap/
 ├── kcap.json
 ├── knowledge.md
+├── knowledge.map.json
 ├── resources/
 │   └── fig-001.png
 └── extras/
     └── source.pdf
 ```
 
-### 14.2 `kcap.json`
+### 15.2 `kcap.json`
 
 ```json
 {
@@ -613,9 +756,92 @@ report.kcap/
 }
 ```
 
+### 15.3 `knowledge.map.json`
+
+```json
+{
+  "version": "1.0",
+  "target": "knowledge.md",
+  "mappings": [
+    {
+      "anchor_id": "blk_001",
+      "generated": {
+        "type": "text",
+        "coord": "char",
+        "range": [0, 48]
+      },
+      "sources": [
+        {
+          "source_id": "src_001",
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "visual",
+                "page": 1,
+                "bbox": [72, 120, 540, 220],
+                "coord": "pt72"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "anchor_id": "blk_002",
+      "generated": {
+        "type": "text",
+        "coord": "line",
+        "range": [
+          { "line": 5 },
+          { "line": 12, "column": 20 }
+        ]
+      },
+      "sources": [
+        {
+          "source_id": "src_001",
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "visual",
+                "page": 2,
+                "bbox": [80, 160, 560, 420],
+                "coord": "pt72"
+              }
+            },
+            {
+              "segment_id": "seg_002",
+              "locator": {
+                "type": "visual",
+                "page": 5,
+                "bbox": [60, 400, 500, 520],
+                "coord": "pt72"
+              }
+            }
+          ]
+        },
+        {
+          "source_id": "src_002",
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "ref",
+                "ref": "extras/docling.json#/texts/3"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
 ---
 
-## 15. Security and Integrity Considerations
+## 16. Security and Integrity Considerations
 
 实现方 **SHOULD** 为来源或快照记录内容哈希，以支持去重、校验与追溯。
 消费方 **SHOULD** 将 `extras/` 中内容视为不可信输入。
@@ -623,11 +849,12 @@ report.kcap/
 
 ---
 
-## 16. Extensibility
+## 17. Extensibility
 
 KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
 * 核心结构固定：`kcap.json`、`knowledge.md`、`sources`
+* 标准可选 sidecar：`knowledge.map.json`
 * 元信息对象开放：`sources[*].metadata`、`knowledge`、`resources`、`extras`、`pipeline`
 
 私有扩展 **SHOULD NOT** 破坏核心字段语义。
@@ -635,16 +862,16 @@ KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
 ---
 
-## 17. Future Work
+## 18. Future Work
 
 后续版本可考虑增加但 v1.0 不包含：
 
-* JSON Schema 定义，用于自动化校验 `kcap.json`
+* JSON Schema 定义，用于自动化校验 `kcap.json` 与 `knowledge.map.json`
 * capsule 生命周期状态（draft → reviewed → approved → archived）
 * chunk 标准
 * embedding / index 标准
 * 多语言正文
-* 来源锚点映射
+* 更细粒度的来源锚点映射（如正文内嵌稳定锚点标记、更复杂的映射规则）
 * 权限与版权信息
 * 扩展命名空间机制
 * 入库批次（batch）描述协议
