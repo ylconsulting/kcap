@@ -188,7 +188,7 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 * `type`：固定为 `"text"`。
 * `coord`：坐标系标识。v1.0 定义两种取值：
   * `"char"`：字符流坐标。`range` 为两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
-  * `"line"`：行列坐标。`range` 为两元素数组，每个元素为包含 `line` 和 `column` 的对象，分别表示起点与终点。
+  * `"line"`：行列坐标。`range` 为两元素数组，每个元素为包含 `line` 和 `column` 的对象，分别表示起点（inclusive）与终点（exclusive）。
 * `range`：坐标范围。具体结构由 `coord` 决定。
 
 字符流示例：
@@ -223,7 +223,7 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 * `type`：固定为 `"visual"`。
 * `page`：可选。用于分页型来源。
 * `bbox`：矩形区域坐标，四元数组 `[x0, y0, x1, y1]`。
-* `coord`：可选。坐标系空间标识，用于标明 `bbox` 所使用的坐标系（如 `"pt72"`、`"px"`、`"mm"` 等）。v1.0 不强制要求此字段，但若存在，同一来源内 **SHOULD** 保持一致。
+* `coord`：可选。坐标系空间标识，用于标明 `bbox` 所使用的坐标系。v1.0 将其定义为自由字符串，推荐使用 `"pt72"`（PDF 默认 72 DPI 点）、`"px"`（像素）、`"mm"`（毫米）等易于理解的短标签。v1.0 不强制要求此字段，但若存在，同一来源内 **SHOULD** 保持一致。
 
 示例：
 
