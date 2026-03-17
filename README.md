@@ -149,7 +149,7 @@ example.kcap/
 ![Figure](resources/fig-001.png)
 ```
 
-实现方 **SHOULD** 在 `kcap.json` 中通过 `knowledge_metadata.content_hash` 记录 `knowledge.md` 的内容哈希（推荐 SHA-256），以支持入库时的去重校验与完整性验证。
+实现方 **SHOULD** 在 `kcap.json` 中通过 `knowledge.content_hash` 记录 `knowledge.md` 的内容哈希（推荐 SHA-256），以支持入库时的去重校验与完整性验证。
 
 ---
 
@@ -167,8 +167,8 @@ example.kcap/
   "created_at": "string",
   "sources": [],
   "composition": {},
-  "knowledge_metadata": {},
-  "resources_metadata": {},
+  "knowledge": {},
+  "resources": {},
   "extras": {},
   "pipeline": {}
 }
@@ -176,7 +176,7 @@ example.kcap/
 
 除 `version`、`sources` 外，其余字段均为可选。
 
-顶层字段用于描述 **capsule 本身**；`knowledge_metadata` 用于描述 `knowledge.md` 所承载的**知识内容**。
+顶层字段用于描述 **capsule 本身**；`knowledge` 用于描述 `knowledge.md` 所承载的**知识内容**。
 
 ### 7.1 Top-level Field Format Conventions
 
@@ -191,7 +191,7 @@ capsule 的创建时间。**MUST** 为 ISO 8601 格式的 UTC 时间字符串（
 
 ---
 
-## 8. Top-level vs Knowledge Metadata
+## 8. Top-level vs `knowledge`
 
 顶层描述类属性用于回答“**这是什么 capsule**”，例如：
 
@@ -203,11 +203,11 @@ capsule 的创建时间。**MUST** 为 ISO 8601 格式的 UTC 时间字符串（
 * `created_at`
 * `sources`
 * `composition`
-* `resources_metadata`
+* `resources`
 * `extras`
 * `pipeline`
 
-`knowledge_metadata` 用于回答“**这个 capsule 包含什么知识**”，例如：
+`knowledge` 用于回答“**这个 capsule 包含什么知识**”，例如：
 
 * `keywords`
 * `tags`
@@ -221,7 +221,7 @@ capsule 的创建时间。**MUST** 为 ISO 8601 格式的 UTC 时间字符串（
 实现方 **SHOULD** 遵循以下原则：
 
 * 若字段描述封装对象本身，则置于顶层
-* 若字段描述正文知识内容的语义、适用性或质量，则置于 `knowledge_metadata`
+* 若字段描述正文知识内容的语义、适用性或质量，则置于 `knowledge`
 
 ---
 
@@ -329,9 +329,9 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ## 11. Metadata Objects
 
-### 11.1 `knowledge_metadata`
+### 11.1 `knowledge`
 
-`knowledge_metadata` 用于保存知识内容的结构化信息，例如：
+`knowledge` 用于保存知识内容的结构化信息，例如：
 
 * `keywords`
 * `tags`
@@ -370,9 +370,9 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 入库系统 **MAY** 依据 `quality` 字段决定是否接受该 capsule 入库。
 
-### 11.2 `resources_metadata`
+### 11.2 `resources`
 
-若存在 `resources/`，实现方 **MAY** 通过 `resources_metadata` 为其中的资源补充描述信息。
+若存在 `resources/`，实现方 **MAY** 通过 `resources` 为其中的资源补充描述信息。
 其键 **SHOULD** 为相对 `resources/` 的路径或文件名。
 
 示例：
@@ -472,8 +472,8 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 入库系统在消费 KCAP capsule 时，**SHOULD** 额外执行以下校验：
 
 * `knowledge.md` 非空且包含有效 Markdown 内容
-* 若 `knowledge_metadata.content_hash` 存在，则验证其与 `knowledge.md` 实际内容一致
-* 若 `knowledge_metadata.quality` 存在，检查 `extraction_confidence` 是否满足入库门槛
+* 若 `knowledge.content_hash` 存在，则验证其与 `knowledge.md` 实际内容一致
+* 若 `knowledge.quality` 存在，检查 `extraction_confidence` 是否满足入库门槛
 * 若 `resources/` 中存在文件，`knowledge.md` 中 **SHOULD** 存在对应的引用
 * 若 `pipeline` 存在，验证所有步骤的 `status` 字段
 
@@ -570,7 +570,7 @@ report.kcap/
       ]
     }
   ],
-  "knowledge_metadata": {
+  "knowledge": {
     "keywords": ["行业趋势", "2025", "市场分析"],
     "abstract": "本文分析了 2025 年行业发展趋势，涵盖市场规模、竞争格局与未来展望。",
     "content_hash": "sha256:a1b2c3d4e5f6...",
@@ -581,7 +581,7 @@ report.kcap/
       "issues": []
     }
   },
-  "resources_metadata": {
+  "resources": {
     "fig-001.png": {
       "type": "image",
       "description": "市场趋势图"
@@ -628,7 +628,7 @@ report.kcap/
 KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
 * 核心结构固定：`kcap.json`、`knowledge.md`、`sources`
-* 元信息对象开放：`sources[*].metadata`、`knowledge_metadata`、`resources_metadata`、`extras`、`pipeline`
+* 元信息对象开放：`sources[*].metadata`、`knowledge`、`resources`、`extras`、`pipeline`
 
 私有扩展 **SHOULD NOT** 破坏核心字段语义。
 通用消费者 **MUST NOT** 被要求理解私有扩展才能完成基本读取。
