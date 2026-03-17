@@ -184,7 +184,7 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 字段说明：
 
 * `type`：固定为 `"text"`。
-* `text_ref`：指向被定位的文本对象（如 `"knowledge.md"`、`"source:src_001:text"`）。
+* `text_ref`：指向被定位的文本对象。对于 `knowledge.md` 正文定位，固定为 `"knowledge.md"`；对于来源文本定位，**SHOULD** 使用 `"source:{source_id}"` 格式（如 `"source:src_001"`）。
 * `char_range`：主坐标。两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
 * `line_range`：可选辅助坐标。两元素数组，每个元素为包含 `line` 和 `column` 的对象，分别表示起点与终点。
 
@@ -311,7 +311,7 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
       "generated": {
         "type": "text",
         "text_ref": "knowledge.md",
-        "char_range": [50, 180],
+        "char_range": [49, 180],
         "line_range": [
           { "line": 5, "column": 1 },
           { "line": 9, "column": 20 }
@@ -859,7 +859,7 @@ report.kcap/
       "generated": {
         "type": "text",
         "text_ref": "knowledge.md",
-        "char_range": [50, 180],
+        "char_range": [49, 180],
         "line_range": [
           { "line": 5, "column": 1 },
           { "line": 12, "column": 20 }
