@@ -103,14 +103,16 @@ extras/
 example.kcap/
 ├── kcap.json
 ├── knowledge.md
-├── resources/   ; optional
-└── extras/      ; optional
+├── knowledge.map.json   ; optional
+├── resources/           ; optional
+└── extras/              ; optional
 ```
 
 其中：
 
 * `kcap.json` 是唯一清单文件
 * `knowledge.md` 是主体知识文本
+* `knowledge.map.json` 是 `knowledge.md` 的可选来源锚点映射文件
 * `resources/` 保存知识相关资源
 * `extras/` 保存非核心扩展附属内容
 
@@ -150,6 +152,101 @@ example.kcap/
 ```
 
 实现方 **SHOULD** 在 `kcap.json` 中通过 `knowledge.content_hash` 记录 `knowledge.md` 的内容哈希（推荐 SHA-256），以支持入库时的去重校验与完整性验证。
+
+### 6.3 `knowledge.map.json`
+
+KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar 文件；若该文件存在，则其语义为 `knowledge.md` 的来源锚点映射文件。
+
+`knowledge.map.json` 用于将 `knowledge.md` 中的块或片段映射回一个或多个原始来源位置，支持来源追溯、调试核查、高保真解释，以及为后续 chunk、citation、UI 高亮与定位跳转留接口。
+
+消费者 **MAY** 忽略 `knowledge.map.json`，而不影响 capsule 的基本读取与使用。
+
+`knowledge.map.json` 通过文件名约定发现，位于 capsule 根目录，与 `knowledge.md` 并列。不需要在 `kcap.json` 中显式配置，也不放入 `extras/`。
+
+#### 6.3.1 数据模型
+
+`knowledge.map.json` **MUST** 为合法 JSON 对象，包含以下顶层字段：
+
+* `version`：source map 文件自身版本，独立于 KCAP 主版本管理。
+* `target`：固定为 `"knowledge.md"`，标明此 map 对应的正文文件。
+* `mappings`：映射记录数组。
+
+#### 6.3.2 映射记录
+
+每条映射记录描述 `knowledge.md` 中一个知识块到一个或多个原始来源位置的对应关系。
+
+单条映射记录 **SHOULD** 包含以下字段：
+
+* `anchor_id`：块级锚点 ID，用于稳定标识一条正文映射。
+* `generated`：描述映射目标在 `knowledge.md` 中的位置。
+  * `line_start`：起始行号
+  * `line_end`：结束行号
+  * 可选 `column_start`、`column_end`：列范围
+  * 可选 `char_start`、`char_end`：字符范围
+* `sources`：数组，表示该知识块对应的一个或多个来源位置（one-to-many）。
+
+#### 6.3.3 来源锚点
+
+`sources` 数组中每个元素 **SHOULD** 包含：
+
+* `source_id`：对应 `kcap.json.sources[*].source_id`
+
+以下定位字段为可选，根据来源类型按需使用：
+
+* `page`：页码
+* `bbox`：边界框坐标数组
+* `char_range`：字符范围
+* `offset_start`、`offset_end`：偏移量
+* `resource_ref`：资源引用
+* `confidence`：映射置信度
+
+#### 6.3.4 设计边界
+
+* v1.0 以**块级映射为主、位置级可选**，不采用纯行列级或压缩编码（如 VLQ）设计。
+* v1.0 不强制要求在 `knowledge.md` 中写入显式 anchor 标记；映射通过 `knowledge.map.json` 中的块顺序和位置描述完成。
+
+#### 6.3.5 示例
+
+```json
+{
+  "version": "1.0",
+  "target": "knowledge.md",
+  "mappings": [
+    {
+      "anchor_id": "blk_001",
+      "generated": {
+        "line_start": 1,
+        "line_end": 3
+      },
+      "sources": [
+        {
+          "source_id": "src_001",
+          "page": 1,
+          "bbox": [72, 120, 540, 220]
+        }
+      ]
+    },
+    {
+      "anchor_id": "blk_002",
+      "generated": {
+        "line_start": 5,
+        "line_end": 9
+      },
+      "sources": [
+        {
+          "source_id": "src_001",
+          "page": 2,
+          "bbox": [80, 160, 560, 420]
+        },
+        {
+          "source_id": "src_002",
+          "page": 1
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -531,6 +628,7 @@ report.kcap/
 report.kcap/
 ├── kcap.json
 ├── knowledge.md
+├── knowledge.map.json
 ├── resources/
 │   └── fig-001.png
 └── extras/
@@ -613,6 +711,45 @@ report.kcap/
 }
 ```
 
+### 14.3 `knowledge.map.json`
+
+```json
+{
+  "version": "1.0",
+  "target": "knowledge.md",
+  "mappings": [
+    {
+      "anchor_id": "blk_001",
+      "generated": {
+        "line_start": 1,
+        "line_end": 3
+      },
+      "sources": [
+        {
+          "source_id": "src_001",
+          "page": 1,
+          "bbox": [72, 120, 540, 220]
+        }
+      ]
+    },
+    {
+      "anchor_id": "blk_002",
+      "generated": {
+        "line_start": 5,
+        "line_end": 12
+      },
+      "sources": [
+        {
+          "source_id": "src_001",
+          "page": 2,
+          "bbox": [80, 160, 560, 420]
+        }
+      ]
+    }
+  ]
+}
+```
+
 ---
 
 ## 15. Security and Integrity Considerations
@@ -628,6 +765,7 @@ report.kcap/
 KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
 * 核心结构固定：`kcap.json`、`knowledge.md`、`sources`
+* 标准可选 sidecar：`knowledge.map.json`
 * 元信息对象开放：`sources[*].metadata`、`knowledge`、`resources`、`extras`、`pipeline`
 
 私有扩展 **SHOULD NOT** 破坏核心字段语义。
@@ -639,12 +777,12 @@ KCAP v1.0 采用“核心固定、外围开放”的扩展策略：
 
 后续版本可考虑增加但 v1.0 不包含：
 
-* JSON Schema 定义，用于自动化校验 `kcap.json`
+* JSON Schema 定义，用于自动化校验 `kcap.json` 与 `knowledge.map.json`
 * capsule 生命周期状态（draft → reviewed → approved → archived）
 * chunk 标准
 * embedding / index 标准
 * 多语言正文
-* 来源锚点映射
+* 更细粒度的来源锚点映射（如正文内嵌稳定锚点标记、更复杂的映射规则）
 * 权限与版权信息
 * 扩展命名空间机制
 * 入库批次（batch）描述协议
