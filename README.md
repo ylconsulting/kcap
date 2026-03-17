@@ -492,7 +492,7 @@ KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
 * `type`：固定为 `"text"`。
 * `coord`：坐标系标识。v1.0 定义两种取值：
   * `"char"`：字符流坐标。`range` 为两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
-  * `"line"`：行列坐标。`range` 为两元素数组，每个元素为包含 `line`（必需）和 `column`（可选）的对象，分别表示起点（inclusive）与终点（exclusive）。省略 `column` 时，默认指向该行起始位置。
+  * `"line"`：行列坐标。`range` 为两元素数组，每个元素为包含 `line`（必需，1-based）和 `column`（可选，1-based）的对象，分别表示起点（inclusive）与终点（exclusive）。`column` 在起点和终点中均可省略，省略时默认为 `1`（即该行起始位置）。
 * `range`：坐标范围。具体结构由 `coord` 决定。
 
 字符流示例：
