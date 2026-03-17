@@ -171,41 +171,108 @@ KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar �
 * `target`：固定为 `"knowledge.md"`，标明此 map 对应的正文文件。
 * `mappings`：映射记录数组。
 
-#### 6.3.2 映射记录
+#### 6.3.2 Locator 抽象
+
+KCAP 定义统一的 `locator` 抽象，用于在不同坐标系统中标记位置。每个 locator **MUST** 包含 `type` 字段，不同 `type` 决定其余字段。
+
+KCAP v1.0 定义三种 locator 类型：`text`、`visual` 和 `ref`。
+
+##### `text` locator
+
+用于在某个文本对象中定位一段文本。以 `char_range` 作为主坐标系，以 `line_range` 作为可选辅助坐标系。
+
+字段说明：
+
+* `type`：固定为 `"text"`。
+* `text_ref`：指向被定位的文本对象（如 `"knowledge.md"`、`"source:src_001:text"`）。
+* `char_range`：主坐标。两元素数组 `[start, end]`，采用 start-inclusive, end-exclusive 语义，即 `[start, end)`。
+* `line_range`：可选辅助坐标。两元素数组，每个元素为包含 `line` 和 `column` 的对象，分别表示起点与终点。
+
+示例：
+
+```json
+{
+  "type": "text",
+  "text_ref": "knowledge.md",
+  "char_range": [120, 260],
+  "line_range": [
+    { "line": 8, "column": 1 },
+    { "line": 12, "column": 15 }
+  ]
+}
+```
+
+##### `visual` locator
+
+用于在页面、图片或视觉对象上定位一个区域。
+
+字段说明：
+
+* `type`：固定为 `"visual"`。
+* `page`：可选。用于分页型来源。
+* `bbox`：矩形区域坐标，四元数组 `[x0, y0, x1, y1]`。v1.0 不强行规定坐标系细节，只要求同一来源内部一致。
+
+示例：
+
+```json
+{
+  "type": "visual",
+  "page": 2,
+  "bbox": [72, 120, 540, 220]
+}
+```
+
+##### `ref` locator
+
+用于以引用方式标识一个位置，而不要求字符范围或视觉区域。
+
+字段说明：
+
+* `type`：固定为 `"ref"`。
+* `ref`：可解析的引用目标。可以是 URL、JSON Pointer、外部系统 anchor 或内部对象 ID 引用。
+
+示例：
+
+```json
+{
+  "type": "ref",
+  "ref": "extras/docling.json#/texts/3"
+}
+```
+
+#### 6.3.3 映射记录
 
 每条映射记录描述 `knowledge.md` 中一个知识块到一个或多个原始来源位置的对应关系。
 
 单条映射记录 **SHOULD** 包含以下字段：
 
 * `anchor_id`：块级锚点 ID，用于稳定标识一条正文映射。`anchor_id` 在同一 `knowledge.map.json` 文件内 **MUST** 唯一。推荐采用 `"blk_"` 前缀加序号的格式（如 `"blk_001"`）。
-* `generated`：描述映射目标在 `knowledge.md` 中的位置。
-  * `line_start`：起始行号
-  * `line_end`：结束行号
-  * 可选 `column_start`、`column_end`：列范围
-  * 可选 `char_start`、`char_end`：字符范围
-* `sources`：数组，表示该知识块对应的一个或多个来源位置（one-to-many）。
+* `generated`：一个 `text` locator，描述映射目标在 `knowledge.md` 中的位置。
+* `sources`：数组，表示该知识块对应的一个或多个来源贡献（one-to-many）。
 
-#### 6.3.3 来源锚点
+#### 6.3.4 来源贡献与 Segments
 
 `sources` 数组中每个元素 **SHOULD** 包含：
 
-* `source_id`：对应 `kcap.json.sources[*].source_id`
+* `source_id`：对应 `kcap.json.sources[*].source_id`。
+* `segments`：数组，表示该 source 中参与当前映射的一个或多个离散片段。
 
-以下定位字段为可选，根据来源类型按需使用：
+在 KCAP v1.0 中，每个 `segment` 仅包含一个 `locator`。
 
-* `page`：页码
-* `bbox`：边界框坐标数组
-* `char_range`：字符范围
-* `offset_start`、`offset_end`：偏移量
-* `resource_ref`：资源引用
-* `confidence`：映射置信度
+单个 segment **SHOULD** 包含：
 
-#### 6.3.4 设计边界
+* `segment_id`：片段标识，在同一 source 贡献内 **SHOULD** 唯一。
+* `locator`：一个 locator 对象（`text`、`visual` 或 `ref`），用于定位该片段在来源中的具体位置。
+
+#### 6.3.5 设计边界
 
 * v1.0 以**块级映射为主、位置级可选**，不采用纯行列级或压缩编码（如 VLQ）设计。
 * v1.0 不强制要求在 `knowledge.md` 中写入显式 anchor 标记；映射通过 `knowledge.map.json` 中的 `anchor_id` 与 `generated` 位置描述完成，不依赖数组顺序。
+* `locator` 只描述"如何找到某处"，不承载 source 本体信息。
+* `segment` 表示 source 中参与映射的一个离散片段；其具体位置由 `locator` 表达。
+* `char_range` 是机器主坐标，`line_range` 是可选辅助坐标。
 
-#### 6.3.5 示例
+#### 6.3.6 示例
 
 ```json
 {
@@ -215,32 +282,74 @@ KCAP capsule **MAY** 包含一个名为 `knowledge.map.json` 的可选 sidecar �
     {
       "anchor_id": "blk_001",
       "generated": {
-        "line_start": 1,
-        "line_end": 3
+        "type": "text",
+        "text_ref": "knowledge.md",
+        "char_range": [0, 48],
+        "line_range": [
+          { "line": 1, "column": 1 },
+          { "line": 3, "column": 8 }
+        ]
       },
       "sources": [
         {
           "source_id": "src_001",
-          "page": 1,
-          "bbox": [72, 120, 540, 220]
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "visual",
+                "page": 1,
+                "bbox": [72, 120, 540, 220]
+              }
+            }
+          ]
         }
       ]
     },
     {
       "anchor_id": "blk_002",
       "generated": {
-        "line_start": 5,
-        "line_end": 9
+        "type": "text",
+        "text_ref": "knowledge.md",
+        "char_range": [50, 180],
+        "line_range": [
+          { "line": 5, "column": 1 },
+          { "line": 9, "column": 20 }
+        ]
       },
       "sources": [
         {
           "source_id": "src_001",
-          "page": 2,
-          "bbox": [80, 160, 560, 420]
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "visual",
+                "page": 2,
+                "bbox": [80, 160, 560, 420]
+              }
+            },
+            {
+              "segment_id": "seg_002",
+              "locator": {
+                "type": "visual",
+                "page": 5,
+                "bbox": [60, 400, 500, 520]
+              }
+            }
+          ]
         },
         {
           "source_id": "src_002",
-          "page": 1
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "ref",
+                "ref": "extras/docling.json#/texts/3"
+              }
+            }
+          ]
         }
       ]
     }
@@ -721,28 +830,54 @@ report.kcap/
     {
       "anchor_id": "blk_001",
       "generated": {
-        "line_start": 1,
-        "line_end": 3
+        "type": "text",
+        "text_ref": "knowledge.md",
+        "char_range": [0, 48],
+        "line_range": [
+          { "line": 1, "column": 1 },
+          { "line": 3, "column": 8 }
+        ]
       },
       "sources": [
         {
           "source_id": "src_001",
-          "page": 1,
-          "bbox": [72, 120, 540, 220]
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "visual",
+                "page": 1,
+                "bbox": [72, 120, 540, 220]
+              }
+            }
+          ]
         }
       ]
     },
     {
       "anchor_id": "blk_002",
       "generated": {
-        "line_start": 5,
-        "line_end": 12
+        "type": "text",
+        "text_ref": "knowledge.md",
+        "char_range": [50, 180],
+        "line_range": [
+          { "line": 5, "column": 1 },
+          { "line": 12, "column": 20 }
+        ]
       },
       "sources": [
         {
           "source_id": "src_001",
-          "page": 2,
-          "bbox": [80, 160, 560, 420]
+          "segments": [
+            {
+              "segment_id": "seg_001",
+              "locator": {
+                "type": "visual",
+                "page": 2,
+                "bbox": [80, 160, 560, 420]
+              }
+            }
+          ]
         }
       ]
     }
