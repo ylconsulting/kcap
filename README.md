@@ -378,12 +378,12 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ### 11.2 `resources`
 
-若存在 `resources/`，实现方 **MAY** 通过 `resources` 为其中的资源补充描述信息。
+若存在 `resources/`，实现方 **SHOULD** 通过 `resources` 为其中的资源补充描述信息。
 其键 **SHOULD** 为以 `resources/` 开头的 capsule 内部相对路径，与 `knowledge.md` 中引用该资源时使用的链接保持一致。
 
 具体而言，对于物理位置位于 `resources/<sub>/<file>` 的资源，其在 `resources` 对象中的键 **SHOULD** 为字符串 `"resources/<sub>/<file>"`。这样使得正文链接、`resources` 元数据键、capsule 内部路径三者使用同一字符串表达，避免歧义。
 
-`resources/` 目录中的文件 **SHOULD** 在 `resources` 对象中具有相应条目；标准 loader **SHOULD** 仅加载在 `resources` 中声明过的资源，未在 `resources` 中声明的文件 **MAY** 被标准 loader 忽略。
+`resources/` 目录中的文件 **SHOULD** 在 `resources` 对象中具有相应条目；标准消费者 **MAY** 仅加载在 `resources` 中声明过的资源，未在 `resources` 中声明的文件 **MAY** 被忽略。
 
 示例：
 
@@ -398,10 +398,10 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ### 11.3 `extras`
 
-若存在 `extras/`，实现方 **MAY** 通过 `extras` 字段描述其中的附加文件。
+若存在 `extras/`，实现方 **SHOULD** 通过 `extras` 字段描述其中的附加文件。
 其键 **SHOULD** 为以 `extras/` 开头的 capsule 内部相对路径，与 `sources[*].snapshots[*].path` 等字段引用 `extras/` 中文件时使用的路径保持一致。
 
-`extras/` 目录中的文件 **SHOULD** 在 `extras` 对象中具有相应条目；标准 loader **SHOULD** 仅加载在 `extras` 中声明过的附加文件，未在 `extras` 中声明的文件 **MAY** 被标准 loader 忽略。
+`extras/` 目录中的文件 **SHOULD** 在 `extras` 对象中具有相应条目；标准消费者 **MAY** 仅加载在 `extras` 中声明过的附加文件，未在 `extras` 中声明的文件 **MAY** 被忽略。
 
 示例：
 
