@@ -378,14 +378,18 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ### 11.2 `resources`
 
-若存在 `resources/`，实现方 **MAY** 通过 `resources` 为其中的资源补充描述信息。
-其键 **SHOULD** 为相对 `resources/` 的路径或文件名。
+若存在 `resources/`，实现方 **SHOULD** 通过 `resources` 为其中的资源补充描述信息。
+其键 **SHOULD** 为以 `resources/` 开头的 capsule 内部相对路径，与 `knowledge.md` 中引用该资源时使用的链接保持一致。
+
+具体而言，对于物理位置位于 `resources/<sub>/<file>` 的资源，其在 `resources` 对象中的键 **SHOULD** 为字符串 `"resources/<sub>/<file>"`。这样使得正文链接、`resources` 元数据键、capsule 内部路径三者使用同一字符串表达，避免歧义。
+
+`resources/` 目录中的文件 **SHOULD** 在 `resources` 对象中具有相应条目；标准消费者 **MAY** 仅加载在 `resources` 中声明过的资源，未在 `resources` 中声明的文件 **MAY** 被忽略。
 
 示例：
 
 ```json
 {
-  "fig-001.png": {
+  "resources/fig-001.png": {
     "type": "image",
     "description": "市场趋势图"
   }
@@ -394,24 +398,27 @@ KCAP v1.0 的多源能力 **MUST NOT** 用于表达任意文档集合的打包�
 
 ### 11.3 `extras`
 
-若存在 `extras/`，实现方 **MAY** 通过 `extras` 字段描述其中的附加文件。
+若存在 `extras/`，实现方 **SHOULD** 通过 `extras` 字段描述其中的附加文件。
+其键 **SHOULD** 为以 `extras/` 开头的 capsule 内部相对路径，与 `sources[*].snapshots[*].path` 等字段引用 `extras/` 中文件时使用的路径保持一致。
+
+`extras/` 目录中的文件 **SHOULD** 在 `extras` 对象中具有相应条目；标准消费者 **MAY** 仅加载在 `extras` 中声明过的附加文件，未在 `extras` 中声明的文件 **MAY** 被忽略。
 
 示例：
 
 ```json
 {
-  "source.pdf": {
-    "path": "extras/source.pdf",
+  "extras/source.pdf": {
     "kind": "source_snapshot",
     "mime_type": "application/pdf"
   },
-  "ocr-debug.json": {
-    "path": "extras/ocr-debug.json",
+  "extras/ocr-debug.json": {
     "kind": "debug_artifact",
     "mime_type": "application/json"
   }
 }
 ```
+
+键即路径，因此条目中不再需要单独的 `path` 字段；`path` 字段在本版本中视为可省略，若同时存在则 **MUST** 与键一致。
 
 标准消费者 **MAY** 忽略 `extras/` 及其描述，而不影响对 capsule 的基本读取。
 
@@ -725,7 +732,7 @@ report.kcap/
     }
   },
   "resources": {
-    "fig-001.png": {
+    "resources/fig-001.png": {
       "type": "image",
       "description": "市场趋势图"
     }
